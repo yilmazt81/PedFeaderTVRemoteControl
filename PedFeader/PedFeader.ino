@@ -16,6 +16,7 @@ decode_results  results;
 String  SystemStatus ="";
 String  Function="";
 String  TimeValue="";
+String  NextFeadTime="";
 
 
 DS1302 rtc(6,5, 4);
@@ -39,9 +40,12 @@ void setup()
   //myservo.attach(9);
   if (EEPROM.read(0)==0){ //Set Empty values  if not set any value of time
    
-      writeStringToEEPROM(1,"00:0000:0000:0000:00");
+    for(int i=1;i<6;i++)
+    {
+      writeStringToEEPROM((20*i),"00:00");
+    }  
   }
- 
+       
    
   pinMode(led1, OUTPUT);
   SystemStatus ="Close";
@@ -130,14 +134,14 @@ void ReadKeysOnMenu()
        // Serial.println("Rrad Key " +keyValue);
        
         if (keyValue=="1")
-        {  irrecv.resume();
-           delay(400);
-               
+        { 
+           delay(500);  
+            irrecv.resume();             
            ReadKeysOnTimeMenu();
            ShowMenu();
         }else if (keyValue=="2")
         { irrecv.resume();
-           delay(400);
+           delay(500);
            ReadKeysonPlanMenu();
            ShowMenu();
         }
@@ -204,14 +208,21 @@ void ReadKeysonPlanMenu(){
 }
 
 void SaveFeadTimeToEprom(){
-      int startNumber=(feedTimeSetupNumber*5)-4;
-      writeStringToEEPROM(startNumber,TimeValue);
+       int adress=feedTimeSetupNumber*20;
+      writeStringToEEPROM(adress,TimeValue);
+
+    lcd.clear() ;
+    lcd.setCursor(1,0); 
+    lcd.print("Schedule Saved ...");
+
+    delay(500);
+
 
 }
 void WriteScreenNumber()
 {
   
-    lcd.clear() ;
+  lcd.clear() ;
   lcd.setCursor(1,0);
 
   lcd.print("Schedule "+String( feedTimeSetupNumber));
@@ -219,19 +230,36 @@ void WriteScreenNumber()
   lcd.print(TimeValue);
 
 }
+bool IsNumberic(String keyValue)
+{
+  if (keyValue == "1" || keyValue == "2" || keyValue == "3"  || keyValue == "4" || keyValue == "5" || keyValue == "6" || keyValue == "7" || keyValue == "8" || keyValue == "9" || keyValue == "0")
+    {
+      return true;
+    }else
+    {
+      return false;
+    }
+}
 void SetupFeadTimeNumber(){
   
 
-  int endNumber=feedTimeSetupNumber*5;
+  int adress=feedTimeSetupNumber*20;
  
    delay(100); 
-   TimeValue= readStringFromEEPROM(1,endNumber);
-   TimeValue="";
-   /*if (TimeValue=="00:00")
-   {
+     TimeValue = readStringFromEEPROM(adress);
+   
+   
+   //I dont know why but function return extra chars
+   if (TimeValue.substring(0,5) == "00:00")
+   {   
       TimeValue="";
-   }*/
+   }
+
    Serial.println(TimeValue);
+   Serial.print(" - ");
+   
+   Serial.print(TimeValue.length());
+
    WriteScreenNumber();
     
   while(true)
@@ -262,10 +290,10 @@ void SetupFeadTimeNumber(){
           
           if (keyValue == "Del")
           {
-              if (TimeValue.length()==1)
+              if (TimeValue.length()==0)
               {
                 irrecv.resume(); 
-                return;
+                continue;
               }
               int to= TimeValue.length()-1;
 
@@ -274,9 +302,9 @@ void SetupFeadTimeNumber(){
               delay(100); 
               irrecv.resume(); 
           } 
-          else if (keyValue == "1" || keyValue == "2" || keyValue == "3"  || keyValue == "4" || keyValue == "5" || keyValue == "6" || keyValue == "7" || keyValue == "8" || keyValue == "9" || keyValue == "0"){
+          else if (IsNumberic(keyValue)){
               TimeValue=TimeValue+keyValue;
-              if (TimeValue.length()==2 || TimeValue.length()==4)
+              if (TimeValue.length()==2)
               {
                 TimeValue=TimeValue+":";
               }
@@ -316,10 +344,12 @@ void ReadSetupFeedTime()
          
          irrecv.resume();
          Serial.println(feedTimeSetupNumber);
-         delay(200);
+         delay(400);
         
          SetupFeadTimeNumber();
-         
+         ShowFeedTime();
+         Serial.println("Return To ShowFeedTime");
+        // return;
          
 
         } 
@@ -367,17 +397,19 @@ void ReadKeysOnTimeMenu(){
               TimeValue=  TimeValue.substring(0, to);
               WriteTimeToScreen();
 
-          }  else if (keyValue != "None" ){
+          }  else if (IsNumberic(keyValue)){
+              if (TimeValue.length()<6)
+              { 
+                WriteTimeToScreen();
+                delay(300);
+              } 
+
               TimeValue=TimeValue+keyValue;
-              if (TimeValue.length()==2 || TimeValue.length()==5)
+              if (TimeValue.length()==2)
               {
                 TimeValue=TimeValue+":";
               }
-              if (TimeValue.length()<6)
-              {
-                delay(100);
-                WriteTimeToScreen();
-              } 
+              
           } 
           
           irrecv.resume(); 
@@ -387,15 +419,14 @@ void ReadKeysOnTimeMenu(){
 
 void TimeToRTC(){
   
-  Serial.println(TimeValue);
-  //writeStringToEEPROM(1,TimeValue);
- int hour= TimeValue.substring(0, 2).toInt();
- 
+    Serial.println(TimeValue); 
+    int hour= TimeValue.substring(0, 2).toInt();
+    
 
- int minutes = TimeValue.substring(3, 5).toInt();
- 
-  
- int second = 0;
+    int minutes = TimeValue.substring(3, 5).toInt();
+    
+      
+    int second = 0;
  
     EEPROM.write(0,1); 
    
@@ -405,7 +436,7 @@ void TimeToRTC(){
     lcd.setCursor(1,0); 
     lcd.print("Time Saved ...");
 
-    delay(5000);
+    delay(500);
  
 }
 
@@ -497,25 +528,24 @@ void CloseSystem(){
 void writeStringToEEPROM(int addrOffset, const String &strToWrite)
 {
   byte len = strToWrite.length();
-  //EEPROM.write(addrOffset, len);
+  EEPROM.write(addrOffset, len);
   for (int i = 0; i < len; i++)
   {
-    EEPROM.write(addrOffset  + i, strToWrite[i]);
+    EEPROM.write(addrOffset + 1 + i, strToWrite[i]);
   }
 }
-String readStringFromEEPROM(int addrOffset,int length)
+
+String readStringFromEEPROM(int addrOffset)
 {
-   
-  char data[length];
-  for (int i = addrOffset; i <= length; i++)
-  {// data[i] = EEPROM.read(addrOffset + 1 + i);
-    char t=EEPROM.read(i);
-    Serial.println( t);
-  //  delay(2000);
-    data[i] = t;
-     
+  int newStrLen = EEPROM.read(addrOffset);
+  char data[newStrLen];
+  Serial.println(newStrLen);
+  Serial.print(" Uzunluk");
+  for (int i = 0; i < newStrLen; i++)
+  {
+    data[i] = EEPROM.read(addrOffset + 1 + i);
   }
-  data[length] = '\ 0'; // !!! NOTE !!! Remove the space between the slash "/" and "0" (I've added a space because otherwise there is a display bug)
+  //data[newStrLen] = '\ 0'; // !!! NOTE !!! Remove the space between the slash "/" and "0" (I've added a space because otherwise there is a display bug)
   return String(data);
 }
 
@@ -532,35 +562,35 @@ String GetKeyValue(uint32_t keyvalue){
     returnV="2";
 
   }
-  else if ( keyvalue == 0x3)
+  else if ( keyvalue == 0x3 || keyvalue == 0x10003)
   {
       returnV="3"; 
 
-  } else if (  keyvalue == 0x4)
+  } else if (  keyvalue == 0x4 || keyvalue == 0x10004)
   {
     returnV="4"; 
 
-  } else if (  keyvalue == 0x5)
+  } else if (  keyvalue == 0x5 || keyvalue == 0x10005)
   {
     returnV="5"; 
 
-  } else if (  keyvalue == 0x6)
+  } else if (  keyvalue == 0x6 || keyvalue == 0x10006)
   {
     returnV="6"; 
 
-  } else if (  keyvalue == 0x7)
+  } else if (  keyvalue == 0x7 || keyvalue == 0x10007)
   {
     returnV="7"; 
 
-  } else if ( keyvalue == 0x8)
+  } else if ( keyvalue == 0x8 || keyvalue == 0x10008)
   {
     returnV="8"; 
 
-  } else if (  keyvalue == 0x9)
+  } else if (  keyvalue == 0x9 || keyvalue == 0x10009)
   {
     returnV="9"; 
 
-  } else if ( keyvalue == 0x0)
+  } else if ( keyvalue == 0x0 || keyvalue == 0x10000)
   {
     returnV="0"; 
 
